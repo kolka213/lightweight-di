@@ -17,6 +17,7 @@ public class Container {
     private final Map<String, Object> beans = new HashMap<>();
     private final Set<String> packagesToScan = new HashSet<>();
     private final FilterBuilder filterBuilder = new FilterBuilder();
+    private final Set<String> beansAlreadyInstantiated = new HashSet<>();
 
     public Container() {
         this.addPackage(this.getClass().getPackageName());
@@ -46,7 +47,15 @@ public class Container {
         Set<Class<?>> reflectedBeans = new HashSet<>(reflections.get(Scanners.TypesAnnotated.with(Bean.class).asClass()));
         logger.info("Found %s beans annotated with @Bean".formatted(reflectedBeans.size()));
         for (Class<?> beanClass : reflectedBeans) {
-            instantiateAndRegisterBean(null, beanClass);
+            Named namedAnnotation = beanClass.getAnnotation(Named.class);
+            String beanName = null;
+            if (namedAnnotation != null) {
+                beanName = namedAnnotation.value();
+            }
+            if (this.beansAlreadyInstantiated.contains(beanName != null ? beanName : beanClass.getSimpleName())) {
+                continue;
+            }
+            instantiateAndRegisterBean(beanName, beanClass);
         }
     }
 
@@ -61,6 +70,7 @@ public class Container {
                 Class<?> dependencyClass = field.getType();
                 String dependencyName = (namedAnnotation != null) ? namedAnnotation.value() : dependencyClass.getSimpleName();
                 if (!this.beans.containsKey(dependencyName)) {
+                    this.beansAlreadyInstantiated.add(dependencyName);
                     instantiateAndRegisterBean(dependencyName, dependencyClass);
                 }
             }

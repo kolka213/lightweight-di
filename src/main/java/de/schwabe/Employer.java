@@ -10,5 +10,5 @@ public class Employer {
 
     @Inject
     @Named("pascalSchwabe")
-    private Employee employee;
+    public Employee employee;
 }
