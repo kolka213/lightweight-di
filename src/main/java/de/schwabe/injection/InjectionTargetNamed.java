@@ -1,4 +1,4 @@
-package de.schwabe;
+package de.schwabe.injection;
 
 import de.schwabe.core.Bean;
 import de.schwabe.core.Inject;

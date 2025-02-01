@@ -4,77 +4,78 @@ import org.reflections.ReflectionUtils;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.FilterBuilder;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class Container {
     private final HashMap<String, Object> beans = new HashMap<>();
     private final Set<String> packagesToScan = new HashSet<>();
+    private final FilterBuilder filterBuilder = new FilterBuilder();
 
     public void addBean(String beanName, Object bean) {
-        this.beans.put(beanName, bean);
+        if (Number.class.isAssignableFrom(bean.getClass())) {
+            this.registerBean(beanName, bean);
+        } else {
+            this.instantiateAndRegisterBean(beanName, bean.getClass());
+        }
     }
 
     public void addPackage(String packageName) {
         this.packagesToScan.add(packageName);
+        this.filterBuilder.includePackage(packageName);
     }
 
     public void start() {
         this.packagesToScan.add(this.getClass().getPackageName());
-
-        Reflections reflections = new Reflections(new ConfigurationBuilder().forPackages(this.packagesToScan.toArray(new String[0])));
+        Reflections reflections = new Reflections(new ConfigurationBuilder()
+                .forPackages(this.packagesToScan.toArray(new String[0]))
+                .filterInputsBy(this.filterBuilder)
+        );
 
         Set<Class<?>> reflectedBeans = new HashSet<>(reflections.get(Scanners.TypesAnnotated.with(Bean.class).asClass()));
         for (Class<?> beanClass : reflectedBeans) {
-            try {
-                Object bean = beanClass.getDeclaredConstructor().newInstance();
+            instantiateAndRegisterBean(null, beanClass);
+        }
+    }
 
-                Set<Field> injectedFields = ReflectionUtils.getFields(beanClass, field -> field.isAnnotationPresent(Inject.class));
-                for (Field field : injectedFields) {
-                    try {
-                        Named namedAnnotation = field.getAnnotation(Named.class);
-                        Class<?> classType = field.getType();
-                        this.injectField(bean, field);
-                        if (namedAnnotation != null) {
-                            this.beans.put(namedAnnotation.value(), field.get(bean));
-                        } else {
-                            this.beans.put(classType.getSimpleName(), field.get(bean));
-                        }
-                    } catch (IllegalAccessException e) {
-                        throw new RuntimeException("Error injecting field %s".formatted(field.getName()), e);
-                    }
-                }
-                Named namedAnnotation = beanClass.getAnnotation(Named.class);
-                if (namedAnnotation != null) {
-                    this.beans.put(namedAnnotation.value(), bean);
-                } else {
-                    this.beans.put(beanClass.getSimpleName(), bean);
-                }
+    private void instantiateAndRegisterBean(String beanName, Class<?> beanClass) {
+        try {
+            Object bean = beanClass.getDeclaredConstructor().newInstance();
+            injectFields(bean, beanClass);
+            registerBean(beanName, bean);
+        } catch (Exception e) {
+            throw new RuntimeException("Error instantiating bean %s".formatted(beanClass.getName()), e);
+        }
+    }
 
-            } catch (Exception e) {
-                throw new RuntimeException("Error instantiating bean %s".formatted(beanClass.getName()), e);
-            }
+    @SuppressWarnings("unchecked")
+    private void injectFields(Object bean, Class<?> beanClass) throws IllegalAccessException {
+        Set<Field> injectedFields = ReflectionUtils.getFields(beanClass, field -> field.isAnnotationPresent(Inject.class));
+        for (Field field : injectedFields) {
+            injectField(bean, field);
+        }
+    }
+
+    private void registerBean(String beanName, Object bean) {
+        beanName = Objects.requireNonNullElseGet(beanName, () -> bean.getClass().getSimpleName());
+        Object previousObject = this.beans.putIfAbsent(beanName, bean);
+        if (Objects.nonNull(previousObject)) {
+            throw new RuntimeException("Bean with name %s already exists".formatted(beanName));
         }
     }
 
     private void injectField(Object bean, Field field) throws IllegalAccessException {
-        Class<?> fieldType = field.getType();
         Named namedAnnotation = field.getAnnotation(Named.class);
-        Object dependency;
-        if (namedAnnotation != null) {
-            dependency = this.beans.get(namedAnnotation.value());
-            if (dependency == null) {
-                dependency = findCompatibleBean(fieldType);
-            }
-        } else {
-            dependency = findCompatibleBean(fieldType);
+        Object dependency = (namedAnnotation != null) ? this.beans.get(namedAnnotation.value()) : findCompatibleBean(field.getType());
+
+        if (dependency == null) {
+            dependency = findCompatibleBean(field.getType());
         }
 
         if (dependency == null) {
-            throw new RuntimeException("No suitable bean found for injection: " + fieldType.getName());
+            throw new RuntimeException("No suitable bean found for injection: " + field.getType().getName());
         }
 
         field.setAccessible(true);
@@ -82,20 +83,24 @@ public class Container {
     }
 
     private Object findCompatibleBean(Class<?> fieldType) {
-        for (Object bean : this.beans.values()) {
-            if (fieldType.isAssignableFrom(bean.getClass())) {
-                return bean;
-            }
-        }
-        return null;
-    }
+        List<Object> compatibleBeans = this.beans.values().stream()
+                .filter(bean -> fieldType.isAssignableFrom(bean.getClass()))
+                .toList();
 
+        if (compatibleBeans.size() == 1) return compatibleBeans.getFirst();
+        else if (compatibleBeans.isEmpty()) return null;
+        else throw new RuntimeException("Ambiguous injection for type %s".formatted(fieldType.getName()));
+    }
 
     public <T> T getBeanByType(Class<T> beanType) {
         Named namedAnnotation = beanType.getAnnotation(Named.class);
         if (namedAnnotation != null) {
             return beanType.cast(this.beans.get(namedAnnotation.value()));
         }
-        return this.beans.values().stream().filter(beanType::isInstance).map(beanType::cast).findFirst().orElseThrow(() -> new RuntimeException("Bean of class %s not found".formatted(beanType.getName())));
+        return this.beans.values().stream()
+                .filter(beanType::isInstance)
+                .map(beanType::cast)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Bean of class %s not found".formatted(beanType.getName())));
     }
 }
