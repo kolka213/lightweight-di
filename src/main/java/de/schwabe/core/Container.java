@@ -28,7 +28,7 @@ public class Container {
     }
 
     public void start() {
-        this.packagesToScan.add(this.getClass().getPackageName());
+        this.addPackage(this.getClass().getPackageName());
         Reflections reflections = new Reflections(new ConfigurationBuilder()
                 .forPackages(this.packagesToScan.toArray(new String[0]))
                 .filterInputsBy(this.filterBuilder)

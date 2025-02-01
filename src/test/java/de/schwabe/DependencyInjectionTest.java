@@ -52,8 +52,8 @@ public class DependencyInjectionTest {
         container.addBean("demoImpl1", new DemoImpl1());
         container.addBean("demoImpl2", new DemoImpl2());
 
-        assertThrows(RuntimeException.class, () -> container.addBean("ambiguousConsumer", new AmbiguousConsumer())
-                , "Ambiguous injection should fail");
+        assertThrows(RuntimeException.class, () -> container.addBean("ambiguousConsumer", new AmbiguousConsumer()),
+                "Ambiguous injection should fail");
     }
 
     @Test
