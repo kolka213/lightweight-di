@@ -12,7 +12,7 @@ import java.util.logging.Logger;
 
 public class Container {
 
-    private static final Logger logger = Logger.getLogger(Container.class.getSimpleName());
+    private static final Logger logger = Logger.getLogger(Container.class.getName());
 
     private final Map<String, Object> beans = new HashMap<>();
     private final Set<String> packagesToScan = new HashSet<>();
@@ -52,7 +52,7 @@ public class Container {
             if (namedAnnotation != null) {
                 beanName = namedAnnotation.value();
             }
-            if (this.beansAlreadyInstantiated.contains(beanName != null ? beanName : beanClass.getSimpleName())) {
+            if (this.beansAlreadyInstantiated.contains(beanName != null ? beanName : beanClass.getName())) {
                 continue;
             }
             instantiateAndRegisterBean(beanName, beanClass);
@@ -68,7 +68,7 @@ public class Container {
             for (Field field : injectedFields) {
                 Named namedAnnotation = field.getAnnotation(Named.class);
                 Class<?> dependencyClass = field.getType();
-                String dependencyName = (namedAnnotation != null) ? namedAnnotation.value() : dependencyClass.getSimpleName();
+                String dependencyName = (namedAnnotation != null) ? namedAnnotation.value() : dependencyClass.getName();
                 if (!this.beans.containsKey(dependencyName)) {
                     this.beansAlreadyInstantiated.add(dependencyName);
                     instantiateAndRegisterBean(dependencyName, dependencyClass);
@@ -91,7 +91,7 @@ public class Container {
     }
 
     private void registerBean(String beanName, Object bean) {
-        beanName = Objects.requireNonNullElseGet(beanName, () -> bean.getClass().getSimpleName());
+        beanName = Objects.requireNonNullElseGet(beanName, () -> bean.getClass().getName());
         Object previousObject = this.beans.putIfAbsent(beanName, bean);
         if (Objects.nonNull(previousObject)) {
             throw new RuntimeException("Bean with name %s already exists".formatted(beanName));
