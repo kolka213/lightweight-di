@@ -30,7 +30,6 @@ public class DependencyInjectionTest {
     @Test
     void testNamedInjection() {
         Container container = new Container();
-        container.addPackage("de.schwabe.demo");
 
         container.addBean("demoImpl1", new DemoImpl1());
         container.addBean("myDemo", new DemoImpl2());
@@ -47,7 +46,6 @@ public class DependencyInjectionTest {
     @Test
     void testAmbiguousInjectionShouldFail() {
         Container container = new Container();
-        container.addPackage("de.schwabe.demo");
 
         container.addBean("demoImpl1", new DemoImpl1());
         container.addBean("demoImpl2", new DemoImpl2());
@@ -59,7 +57,6 @@ public class DependencyInjectionTest {
     @Test
     void testDuplicateNamedBeansShouldFail() {
         Container container = new Container();
-        container.addPackage("de.schwabe.demo");
 
         container.addBean("myDemo", new DemoImpl1());
 
